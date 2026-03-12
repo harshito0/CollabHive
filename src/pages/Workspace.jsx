@@ -1,9 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Layout, MessageSquare, MonitorPlay, Github, Plus, MoreHorizontal, 
-  Send, Trash2, GitBranch, Star, FileCode, Folder, Upload, HardDrive, 
-  Activity, CheckCircle2, Code2, Terminal, Users2, Shield, AlertCircle
+  Layout, MessageSquare, MonitorPlay, Plus, 
+  Send, Trash2, GitBranch, Folder, FileCode, Upload, 
+  Activity, CheckCircle2, Code2, Terminal, Users2, AlertCircle
 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { updateCollabScore } from '../utils/collabScore';
 import { Whiteboard } from '../components/Whiteboard';
 import './Workspace.css';
 
@@ -15,106 +18,153 @@ const TABS = [
   { id: 'livecode', label: 'Live Code', icon: Code2 },
 ];
 
-const INITIAL_TASKS = {
-  todo: [
-    { id: 1, title: 'Design database schema', tag: 'Backend' },
-    { id: 2, title: 'Configure Next.js routing', tag: 'Frontend' },
-  ],
-  inProgress: [
-    { id: 3, title: 'Build AI Mentor UI', tag: 'Design' },
-  ],
-  done: [
-    { id: 4, title: 'Project Initialization', tag: 'DevOps' },
-  ]
-};
-
-const INITIAL_MESSAGES = [
-  { id: 1, user: 'Sarah', avatar: 'Sarah', color: 'ec4899', text: 'Just pushed the new auth module 🎉', time: '2:30 PM' },
-  { id: 2, user: 'Alex', avatar: 'Alex', color: '6366f1', text: 'Looks great! Can you review my PR?', time: '2:31 PM' },
-  { id: 3, user: 'Raj', avatar: 'Raj', color: '10b981', text: 'On it. Standby for code review comments.', time: '2:33 PM' },
-];
-
-const INITIAL_FILES = [
-  { name: 'src', type: 'folder', children: [
-    { name: 'components', type: 'folder', children: [
-      { name: 'Auth.jsx', type: 'file', size: '2.4 KB', contributor: 'Sarah' },
-      { name: 'Navbar.jsx', type: 'file', size: '1.8 KB', contributor: 'Raj' }
-    ]},
-    { name: 'App.jsx', type: 'file', size: '4.2 KB', contributor: 'Alex' },
-    { name: 'index.css', type: 'file', size: '0.8 KB', contributor: 'Sarah' }
-  ]},
-  { name: 'package.json', type: 'file', size: '1.2 KB', contributor: 'Alex' },
-  { name: 'README.md', type: 'file', size: '3.1 KB', contributor: 'Raj' }
-];
-
-const ACTIVITIES = [
-  { id: 1, user: 'Sarah', action: 'Uploaded', target: 'login_v2.js', time: '10 mins ago' },
-  { id: 2, user: 'Alex', action: 'Modified', target: 'App.jsx', time: '45 mins ago' },
-  { id: 3, user: 'Raj', action: 'Deleted', target: 'temp.txt', time: '2 hours ago' },
-];
-
 export function Workspace() {
   const [activeTab, setActiveTab] = useState('tasks');
-  const [tasks, setTasks] = useState(INITIAL_TASKS);
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const [tasks, setTasks] = useState({ todo: [], inProgress: [], done: [] });
+  const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [newTaskInput, setNewTaskInput] = useState({ todo: '', inProgress: '', done: '' });
   const [addingIn, setAddingIn] = useState(null);
   
   // Mini Git State
-  const [files, setFiles] = useState(INITIAL_FILES);
-  const [activities, setActivities] = useState(ACTIVITIES);
-  const [progress, setProgress] = useState(68);
+  const [files, setFiles] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   // Live Code State
   const [code, setCode] = useState(`function ProjectInitializer() {\n  console.log("CollabHive is Live! 🚀");\n  return (\n    <div className="hive-core">\n      <h1>Welcome to the Shared Hive Room</h1>\n    </div>\n  );\n}`);
-  const [activeUsers, setActiveUsers] = useState(['Sarah (Architect)', 'Alex (Lead)', 'You']);
+  const [activeUsers] = useState(['Sarah (Architect)', 'Alex (Lead)', 'You']);
 
-  // ── ADD TASK ───────────────────────────────────────────────────────────────
-  const handleAddTask = (col) => {
+  // ── FIREBASE EFFECTS ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!db) return;
+
+    // Chat Listener
+    const chatQuery = query(collection(db, 'workspace_messages'), orderBy('timestamp', 'asc'));
+    const unsubscribeChat = onSnapshot(chatQuery, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(msgs);
+    });
+
+    // Tasks Listener
+    const unsubscribeTasks = onSnapshot(collection(db, 'workspace_tasks'), (snapshot) => {
+      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const organized = {
+        todo: allTasks.filter(t => t.status === 'todo'),
+        inProgress: allTasks.filter(t => t.status === 'inProgress'),
+        done: allTasks.filter(t => t.status === 'done')
+      };
+      setTasks(organized);
+    });
+
+    // Files Listener
+    const unsubscribeFiles = onSnapshot(collection(db, 'workspace_files'), (snapshot) => {
+      const allFiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setFiles(allFiles);
+    });
+
+    // Activities Listener
+    const activityQuery = query(collection(db, 'workspace_activities'), orderBy('timestamp', 'desc'));
+    const unsubscribeActivities = onSnapshot(activityQuery, (snapshot) => {
+      const allActivities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setActivities(allActivities);
+    });
+
+    return () => {
+      unsubscribeChat();
+      unsubscribeTasks();
+      unsubscribeFiles();
+      unsubscribeActivities();
+    };
+  }, []);
+
+  // ── HANDLERS (FIRESTORE WRITES) ──────────────────────────────────────────
+  const handleAddTask = async (col) => {
     const title = newTaskInput[col].trim();
-    if (!title) return;
-    const newTask = { id: Date.now(), title, tag: col === 'todo' ? 'New' : col === 'inProgress' ? 'Active' : 'Done' };
-    setTasks(prev => ({ ...prev, [col]: [...prev[col], newTask] }));
-    setNewTaskInput(prev => ({ ...prev, [col]: '' }));
-    setAddingIn(null);
+    if (!title || !db) return;
+    
+    try {
+      await addDoc(collection(db, 'workspace_tasks'), {
+        title,
+        tag: col === 'todo' ? 'New' : col === 'inProgress' ? 'Active' : 'Done',
+        status: col,
+        timestamp: serverTimestamp()
+      });
+      setNewTaskInput(prev => ({ ...prev, [col]: '' }));
+      setAddingIn(null);
+      
+      // Update Real Collab Score
+      await updateCollabScore('TASK');
+    } catch (error) {
+      console.error("Error adding task:", error);
+    }
   };
 
-  const handleDeleteTask = (col, id) => {
-    setTasks(prev => ({ ...prev, [col]: prev[col].filter(t => t.id !== id) }));
+  const handleDeleteTask = async (id) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'workspace_tasks', id));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      user: 'You',
-      avatar: 'User',
-      color: '6366f1',
-      text: chatInput,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }]);
-    setChatInput('');
+    if (!chatInput.trim() || !db) return;
+
+    try {
+      await addDoc(collection(db, 'workspace_messages'), {
+        user: 'You',
+        avatar: 'User',
+        color: '6366f1',
+        text: chatInput,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: serverTimestamp()
+      });
+      setChatInput('');
+      
+      // Update Real Collab Score
+      await updateCollabScore('CHAT');
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   // ── MINI GIT HANDLERS ──────────────────────────────────────────────────────
-  const simulateUpload = () => {
+  const simulateUpload = async () => {
+    if (!db) return;
     setIsUploading(true);
-    setTimeout(() => {
-      const newFile = { name: `component_${Math.floor(Math.random()*100)}.jsx`, type: 'file', size: '1.5 KB', contributor: 'You' };
-      setFiles(prev => [...prev, newFile]);
-      setActivities(prev => [{
-        id: Date.now(),
+    try {
+      const fileName = `component_${Math.floor(Math.random()*100)}.jsx`;
+      const newFile = { 
+        name: fileName, 
+        type: 'file', 
+        size: '1.5 KB', 
+        contributor: 'You',
+        timestamp: serverTimestamp()
+      };
+      
+      await addDoc(collection(db, 'workspace_files'), newFile);
+      
+      await addDoc(collection(db, 'workspace_activities'), {
         user: 'You',
         action: 'Uploaded',
-        target: newFile.name,
-        time: 'Just now'
-      }, ...prev]);
+        target: fileName,
+        time: 'Just now',
+        timestamp: serverTimestamp()
+      });
+      
       setProgress(prev => Math.min(100, prev + 2));
+      
+      // Update Real Collab Score
+      await updateCollabScore('GIT');
+    } catch (error) {
+      console.error("Error simulating upload:", error);
+    } finally {
       setIsUploading(false);
-    }, 1500);
+    }
   };
 
   // ── RENDER TASK COLUMN ─────────────────────────────────────────────────────
@@ -153,7 +203,7 @@ export function Workspace() {
           <div key={task.id} className={`task-card ${taskClass ?? ''}`} draggable="true">
             <div className="flex-between mb-2">
               <span className={`task-tag ${colId === 'inProgress' ? 'blue' : colId === 'done' ? 'green' : ''}`}>{task.tag}</span>
-              <button className="icon-btn-small text-muted" onClick={() => handleDeleteTask(colId, task.id)}>
+              <button className="icon-btn-small text-muted" onClick={() => handleDeleteTask(task.id)}>
                 <Trash2 size={12} />
               </button>
             </div>
@@ -174,15 +224,15 @@ export function Workspace() {
         <div>
           <div className="flex-center gap-2" style={{ justifyContent: 'flex-start' }}>
             <span className="badge-project-status">Active Sprint</span>
-            <span className="text-muted text-sm">Ends in 3 days</span>
+            <span className="text-muted text-sm">Ends in {tasks.todo.length + tasks.inProgress.length} tasks</span>
           </div>
-          <h1 className="mt-2 text-gradient">E-commerce Redesign</h1>
+          <h1 className="mt-2 text-gradient">Live Project Feed</h1>
         </div>
         <div className="header-team flex-center">
           <div className="avatar-stack">
             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex&backgroundColor=6366f1" alt="Alex" />
             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=ec4899" alt="Sarah" />
-            <div className="avatar-more">+2</div>
+            <div className="avatar-more">+{messages.length > 0 ? messages.length : 0}</div>
           </div>
           <button className="btn-secondary ml-4 flex-center gap-2" onClick={() => alert('Invite link copied! Share it with your teammate.')}>
             <Plus size={16} /> Invite
@@ -229,6 +279,7 @@ export function Workspace() {
                   </div>
                 </div>
               ))}
+              {messages.length === 0 && <div className="text-center text-muted p-8">No messages yet. Lead the conversation!</div>}
             </div>
             <form className="chat-input-row" onSubmit={handleSendMessage}>
               <input

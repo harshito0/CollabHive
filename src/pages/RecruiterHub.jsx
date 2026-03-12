@@ -1,46 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, Briefcase, Star, MapPin, Code, Trophy, ArrowUpRight } from 'lucide-react';
 import './RecruiterHub.css';
-
-const MOCK_TALENT = [
-  { 
-    id: 1, 
-    name: 'Arnav Gupta', 
-    role: 'Full Stack Developer', 
-    skills: ['React', 'Node.js', 'PostgreSQL'], 
-    collabScore: 98, 
-    wins: 3, 
-    experience: '3 years',
-    location: 'New Delhi, India',
-    status: 'Actively Looking'
-  },
-  { 
-    id: 2, 
-    name: 'Sarah Chen', 
-    role: 'UI/UX Designer', 
-    skills: ['Figma', 'System Design', 'React'], 
-    collabScore: 95, 
-    wins: 5, 
-    experience: '4 years',
-    location: 'Remote',
-    status: 'Open to Offers'
-  },
-  { 
-    id: 3, 
-    name: 'Raj Patel', 
-    role: 'Backend Engineer', 
-    skills: ['Go', 'Docker', 'Kubernetes'], 
-    collabScore: 92, 
-    wins: 2, 
-    experience: '2 years',
-    location: 'Mumbai, India',
-    status: 'Hidden'
-  },
-];
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function RecruiterHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSkill, setFilterSkill] = useState('All');
+  const [talent, setTalent] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db) return;
+
+    const q = query(collection(db, 'users'), orderBy('collabScore', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTalent(users);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const filteredTalent = talent.filter(t => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = (t.name || '').toLowerCase().includes(searchLower) || 
+                          (t.role || '').toLowerCase().includes(searchLower);
+    const matchesSkill = filterSkill === 'All' || (t.skills && t.skills.includes(filterSkill));
+    return matchesSearch && matchesSkill;
+  });
 
   return (
     <div className="recruiter-container">
@@ -80,7 +69,9 @@ export default function RecruiterHub() {
       </div>
 
       <div className="talent-grid">
-        {MOCK_TALENT.map(talent => (
+        {loading && <div className="col-span-full text-center p-20 text-muted">Searching for top talent...</div>}
+        {!loading && filteredTalent.length === 0 && <div className="col-span-full text-center p-20 text-muted">No developers found matching your criteria.</div>}
+        {filteredTalent.map(talent => (
           <div key={talent.id} className="talent-card glass-panel h-card">
             <div className="talent-header flex-between">
               <div className="flex-center gap-4">
@@ -102,18 +93,18 @@ export default function RecruiterHub() {
 
             <div className="talent-body mt-6">
               <div className="flex-center gap-4 mb-4" style={{ justifyContent: 'flex-start' }}>
-                <span className="flex-center gap-1 text-xs text-muted"><MapPin size={12} /> {talent.location}</span>
-                <span className="flex-center gap-1 text-xs text-muted"><Briefcase size={12} /> {talent.experience}</span>
+                <span className="flex-center gap-1 text-xs text-muted"><MapPin size={12} /> {talent.location || 'Unknown'}</span>
+                <span className="flex-center gap-1 text-xs text-muted"><Briefcase size={12} /> {talent.experience || 'Entry Level'}</span>
               </div>
               
               <div className="skills-row flex-center gap-2 flex-wrap mb-6" style={{ justifyContent: 'flex-start' }}>
-                {talent.skills.map(s => <span key={s} className="skill-pill-git">{s}</span>)}
+                {(talent.skills || []).map(s => <span key={s} className="skill-pill-git">{s}</span>)}
               </div>
 
               <div className="talent-stats grid grid-cols-2 gap-4">
                 <div className="t-stat">
                   <Trophy size={14} className="text-orange mb-1" />
-                  <p className="text-lg font-bold">{talent.wins}</p>
+                  <p className="text-lg font-bold">{talent.wins || 0}</p>
                   <p className="text-xs text-muted">Hackathon Wins</p>
                 </div>
                 <div className="t-stat">
@@ -125,8 +116,8 @@ export default function RecruiterHub() {
             </div>
 
             <div className="talent-footer border-t mt-6 pt-4 flex-between">
-              <span className={`status-badge ${talent.status.toLowerCase().replace(/\s/g, '-')}`}>
-                {talent.status}
+              <span className={`status-badge ${(talent.status || 'Available').toLowerCase().replace(/\s/g, '-')}`}>
+                {talent.status || 'Available'}
               </span>
               <button className="btn-primary-small flex-center gap-2">
                 View Portfolio <ArrowUpRight size={14} />

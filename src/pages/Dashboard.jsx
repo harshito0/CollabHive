@@ -1,25 +1,33 @@
-import React from 'react';
-import { Activity, Clock, Users, ArrowRight, Code, Calendar, Flame } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, Clock, Users, ArrowRight, Code, Calendar, Flame, Star } from 'lucide-react';
 import './Dashboard.css';
+import { db, auth } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const MOCK_PROJECTS = [
   { id: 1, name: 'E-commerce Redesign', role: 'Frontend Lead', progress: 75, members: 4, tech: ['React', 'Node'] },
   { id: 2, name: 'AI Mentor Dashboard', role: 'Full Stack', progress: 30, members: 2, tech: ['Vite', 'Gemini API'] },
 ];
 
-// ── GENERATE HEATMAP DATA ───────────────────────────────────────────────────
-const generateHeatmapData = () => {
-  const data = [];
-  const levels = [0, 1, 2, 3, 4]; // Activity levels
-  for (let i = 0; i < 91; i++) { // 13 weeks * 7 days
-    data.push(levels[Math.floor(Math.random() * levels.length)]);
-  }
-  return data;
-};
-
-const HEATMAP_DATA = generateHeatmapData();
+// ... (HEATMAP_DATA logic)
+const HEATMAP_DATA = Array.from({ length: 365 }, () => Math.floor(Math.random() * 5));
 
 export function Dashboard() {
+  const [collabScore, setCollabScore] = useState(0);
+
+  useEffect(() => {
+    const user = auth?.currentUser;
+    if (!user || !db) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
+      if (doc.exists()) {
+        setCollabScore(doc.data().collabScore || 0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
@@ -29,8 +37,18 @@ export function Dashboard() {
         </div>
         <button className="btn-primary">Generate New Idea 💡</button>
       </div>
-
+      
       <div className="stats-grid">
+        <div className="stat-card glass-panel collab-score-card">
+          <div className="stat-icon-wrapper golden">
+            <Star size={24} />
+          </div>
+          <div className="stat-content">
+            <p className="stat-label">Collab Score</p>
+            <h3 className="stat-value">{collabScore.toFixed(1)}</h3>
+            <p className="stat-trend positive">Live Metric</p>
+          </div>
+        </div>
         <div className="stat-card glass-panel">
           <div className="stat-icon-wrapper blue">
             <Activity size={24} />
@@ -49,16 +67,6 @@ export function Dashboard() {
             <p className="stat-label">Hours Collaborated</p>
             <h3 className="stat-value">12.5h</h3>
             <p className="stat-trend">Last 7 days</p>
-          </div>
-        </div>
-        <div className="stat-card glass-panel">
-          <div className="stat-icon-wrapper green">
-            <Users size={24} />
-          </div>
-          <div className="stat-content">
-            <p className="stat-label">Active Teams</p>
-            <h3 className="stat-value">3</h3>
-            <p className="stat-trend">1 new match</p>
           </div>
         </div>
       </div>

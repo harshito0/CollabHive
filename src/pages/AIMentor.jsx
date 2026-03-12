@@ -5,6 +5,17 @@ import {
 } from 'lucide-react';
 import './AIMentor.css';
 
+import { 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp,
+  limit
+} from 'firebase/firestore';
+import { db } from '../firebase';
+
 export function AIMentor() {
   const [activeMode, setActiveMode] = useState('roadmap'); // 'roadmap' or 'validator'
   const [prompt, setPrompt] = useState('');
@@ -15,9 +26,7 @@ export function AIMentor() {
   // Chat state
   const [queryInput, setQueryInput] = useState('');
   const [isQuerying, setIsQuerying] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: 'ai', text: 'Hello! I am your lead architect. How can I help you refine this roadmap?' }
-  ]);
+  const [messages, setMessages] = useState([]);
   const chatEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -28,30 +37,75 @@ export function AIMentor() {
     scrollToBottom();
   }, [messages]);
 
-  const handleAction = (e) => {
+  // ── FIREBASE LISTENERS ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!db) return;
+
+    // Listen for most recent roadmap/validation
+    const resultsQuery = query(collection(db, 'mentor_results'), orderBy('timestamp', 'desc'), limit(1));
+    const unsubscribeResults = onSnapshot(resultsQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const data = snapshot.docs[0].data();
+        if (data.type === 'roadmap') {
+          setResult(data.data);
+          setActiveMode('roadmap');
+        } else {
+          setValidationResult(data.data);
+          setActiveMode('validator');
+        }
+      }
+    });
+
+    // Listen for mentor messages
+    const chatQuery = query(collection(db, 'mentor_messages'), orderBy('timestamp', 'asc'));
+    const unsubscribeChat = onSnapshot(chatQuery, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(msgs.length > 0 ? msgs : [
+        { role: 'ai', text: 'Hello! I am your lead architect. How can I help you refine this roadmap?' }
+      ]);
+    });
+
+    return () => {
+      unsubscribeResults();
+      unsubscribeChat();
+    };
+  }, []);
+
+  const handleAction = async (e) => {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !db) return;
     
     setIsGenerating(true);
-    setResult(null);
-    setValidationResult(null);
     
     if (activeMode === 'roadmap') {
       // Simulate Roadmap generation
-      setTimeout(() => {
-        setResult({
+      setTimeout(async () => {
+        const roadmapData = {
           features: ['User Authentication', 'Product Catalog', 'Shopping Cart', 'Payment Gateway Integration', 'Admin Dashboard'],
           folderStructure: `src/\n  components/\n  pages/\n  context/\n  services/\n  utils/`,
           schema: `User { id, email, password }\nProduct { id, name, price, stock }\nOrder { id, userId, total, status }`,
           endpoints: `GET /api/products\nPOST /api/orders\nPOST /api/auth/login`
+        };
+
+        await addDoc(collection(db, 'mentor_results'), {
+          type: 'roadmap',
+          prompt: prompt,
+          data: roadmapData,
+          timestamp: serverTimestamp()
         });
+
+        await addDoc(collection(db, 'mentor_messages'), {
+          role: 'ai',
+          text: `Roadmap generated for: ${prompt}. How can I help you refine the technical architecture?`,
+          timestamp: serverTimestamp()
+        });
+
         setIsGenerating(false);
-        setMessages([{ role: 'ai', text: 'Roadmap generated! How can I help you refine the technical architecture?' }]);
       }, 1500);
     } else {
       // Simulate Idea Validation
-      setTimeout(() => {
-        setValidationResult({
+      setTimeout(async () => {
+        const validationData = {
           score: 8.5,
           marketDemand: 'High',
           competition: 'Medium',
@@ -66,36 +120,63 @@ export function AIMentor() {
             'Integrate with existing CI/CD tools to increase stickiness.',
             'Implement a "Creator Fund" to drive viral growth.'
           ]
+        };
+
+        await addDoc(collection(db, 'mentor_results'), {
+          type: 'validator',
+          prompt: prompt,
+          data: validationData,
+          timestamp: serverTimestamp()
         });
+
+        await addDoc(collection(db, 'mentor_messages'), {
+          role: 'ai',
+          text: `Analysis complete for: ${prompt}. The monetization model looks promising. Any specific questions on the market strategy?`,
+          timestamp: serverTimestamp()
+        });
+
         setIsGenerating(false);
-        setMessages([{ role: 'ai', text: 'Analysis complete! The monetization model looks promising. Any specific questions on the market strategy?' }]);
       }, 1500);
     }
   };
 
-  const handleQuery = (e) => {
+  const handleQuery = async (e) => {
     e.preventDefault();
-    if (!queryInput.trim() || isQuerying) return;
+    if (!queryInput.trim() || isQuerying || !db) return;
 
     const userText = queryInput;
     setQueryInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userText }]);
     setIsQuerying(true);
 
-    setTimeout(() => {
-      let aiResponse = "Regarding your query, ";
-      
-      if (userText.toLowerCase().includes('security') || userText.toLowerCase().includes('auth')) {
-        aiResponse += "I recommend JWT with rotation for secure session management.";
-      } else if (userText.toLowerCase().includes('market') || userText.toLowerCase().includes('money')) {
-        aiResponse += "the B2B SaaS model is likely your best path to recurring revenue.";
-      } else {
-        aiResponse += "that's a solid approach for scaling this kind of platform.";
-      }
+    try {
+      await addDoc(collection(db, 'mentor_messages'), {
+        role: 'user',
+        text: userText,
+        timestamp: serverTimestamp()
+      });
 
-      setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
+      // Simulate AI response
+      setTimeout(async () => {
+        let aiResponse = "Regarding your query, ";
+        if (userText.toLowerCase().includes('security') || userText.toLowerCase().includes('auth')) {
+          aiResponse += "I recommend JWT with rotation for secure session management.";
+        } else if (userText.toLowerCase().includes('market') || userText.toLowerCase().includes('money')) {
+          aiResponse += "the B2B SaaS model is likely your best path to recurring revenue.";
+        } else {
+          aiResponse += "that's a solid approach for scaling this kind of platform.";
+        }
+
+        await addDoc(collection(db, 'mentor_messages'), {
+          role: 'ai',
+          text: aiResponse,
+          timestamp: serverTimestamp()
+        });
+        setIsQuerying(false);
+      }, 1200);
+    } catch (error) {
+      console.error("Error sending mentor query:", error);
       setIsQuerying(false);
-    }, 1200);
+    }
   };
 
   return (

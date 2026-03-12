@@ -4,6 +4,7 @@ import {
   Trash2, Undo2, Redo2, Download, Minus as LineIcon, MousePointer2
 } from 'lucide-react';
 import './Whiteboard.css';
+import { updateCollabScore } from '../utils/collabScore';
 
 // ─── PREDEFINED COLOR PALETTES ──────────────────────────────────────────────
 const COLORS = [
@@ -215,6 +216,9 @@ export function Whiteboard() {
       oct.clearRect(0, 0, oc.width, oc.height);
       drawShapeOnCtx(getCtx(), startPos.current.x, startPos.current.y, pos.x, pos.y);
     }
+
+    // Update Real Collab Score after drawing action
+    updateCollabScore('WHITEBOARD');
   };
 
   // ── COMMIT TEXT ───────────────────────────────────────────────────────────
@@ -224,8 +228,10 @@ export function Whiteboard() {
       ctx.font      = `${Math.max(16, strokeSize * 4)}px Inter, sans-serif`;
       ctx.fillStyle = color;
       // Scale back to canvas coords
-      const scaleX = getCanvas().width / getCanvas().getBoundingClientRect().width;
       ctx.fillText(textInput.value, textInput.x, textInput.y);
+      
+      // Update Real Collab Score after text placement
+      updateCollabScore('WHITEBOARD');
     }
     setTextInput({ active: false, x: 0, y: 0, value: '' });
   };
