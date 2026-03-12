@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -8,6 +8,8 @@ import { Matchmaking } from './pages/Matchmaking';
 import { Workspace } from './pages/Workspace';
 import { Hackathon } from './pages/Hackathon';
 import { Portfolio } from './pages/Portfolio';
+import { AuthModal } from './components/auth/AuthModal';
+import { ProfileSetup } from './components/auth/ProfileSetup';
 import './App.css';
 
 // Placeholder components for routing
@@ -19,15 +21,32 @@ const Placeholder = ({ title }) => (
 );
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileSetupOpen, setIsProfileSetupOpen] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null); // holds auth data while profile is being set up
+
+  const handleLogin = (authData) => {
+    setPendingUser(authData);
+    setIsAuthOpen(false);
+    setIsProfileSetupOpen(true); // Immediately show the profile wizard
+  };
+
+  const handleProfileComplete = (profileData) => {
+    setUser({ ...pendingUser, ...profileData });
+    setPendingUser(null);
+    setIsProfileSetupOpen(false);
+  };
+
   return (
     <Router>
       <div className="app-container">
-        <Sidebar />
+        <Sidebar user={user} onLoginClick={() => setIsAuthOpen(true)} onLogout={() => setUser(null)} />
         <main className="main-content">
-          <Header />
+          <Header user={user} onLoginClick={() => setIsAuthOpen(true)} />
           <div className="page-container">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Dashboard user={user} onLoginClick={() => setIsAuthOpen(true)} />} />
               <Route path="/mentor" element={<AIMentor />} />
               <Route path="/matchmaking" element={<Matchmaking />} />
               <Route path="/workspace" element={<Workspace />} />
@@ -38,6 +57,17 @@ function App() {
           </div>
         </main>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        onLogin={handleLogin}
+      />
+
+      <ProfileSetup
+        isOpen={isProfileSetupOpen}
+        onComplete={handleProfileComplete}
+      />
     </Router>
   );
 }

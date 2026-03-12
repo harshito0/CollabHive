@@ -22,7 +22,7 @@ const navItems = [
   { path: '/portfolio', icon: Briefcase, label: 'My Portfolio' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ user, onLoginClick, onLogout }) {
   return (
     <aside className="sidebar glass-panel">
       <div className="sidebar-header">
@@ -60,13 +60,22 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="user-profile">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=6366f1" alt="User" className="user-avatar" />
-          <div className="user-info">
-            <p className="user-name">Harshit Singh</p>
-            <p className="user-role">Full Stack Engineer</p>
+        {user ? (
+          <div className="user-profile">
+            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}&backgroundColor=6366f1`} alt="User" className="user-avatar" />
+            <div className="user-info">
+              <p className="user-name">{user.name}</p>
+              <p className="user-role flex-between" style={{gap: '0.5rem'}}>
+                <span>Logged In ({user.method})</span>
+                <button onClick={onLogout} className="btn-text text-danger" style={{fontSize: '0.7rem'}}>Logout</button>
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <button onClick={onLoginClick} className="btn-primary w-full flex-center p-3 text-sm">
+            Sign In / Register
+          </button>
+        )}
       </div>
     </aside>
   );
