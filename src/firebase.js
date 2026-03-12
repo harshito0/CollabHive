@@ -1,15 +1,6 @@
 // Firebase Configuration
-// ⚠️  IMPORTANT: Replace the values below with your actual Firebase project credentials.
-// How to get them:
-// 1. Go to https://console.firebase.google.com
-// 2. Create a new project (or select an existing one)
-// 3. Go to Project Settings → General → "Your apps" → Web App
-// 4. Copy the firebaseConfig object and paste the values here.
-//
-// Required Auth methods to ENABLE in Firebase Console:
-//   Authentication → Sign-in Method:
-//     ✅ Google
-//     ✅ Phone
+// ⚠️  To enable REAL auth, replace the values below with your Firebase project credentials.
+// Get them from: https://console.firebase.google.com → Project Settings → Web App
 
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -23,5 +14,20 @@ const firebaseConfig = {
   appId:             "YOUR_APP_ID",
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// Check if real credentials have been added
+export const isFirebaseConfigured =
+  firebaseConfig.apiKey !== "YOUR_API_KEY" &&
+  firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+
+let auth = null;
+
+if (isFirebaseConfigured) {
+  try {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+  } catch (e) {
+    console.warn('Firebase init failed:', e.message);
+  }
+}
+
+export { auth };

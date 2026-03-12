@@ -233,3 +233,118 @@
   text-decoration: line-through;
   color: var(--text-muted);
 }
+
+/* ── Add Task Form ── */
+.add-task-form {
+  background: rgba(0,0,0,0.2);
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.add-task-form .form-input {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-main);
+  width: 100%;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.add-task-form .form-input:focus {
+  border-color: var(--primary);
+}
+
+/* ── Team Chat ── */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 520px;
+  padding: 1.5rem;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-right: 0.5rem;
+}
+
+.chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.chat-msg.self {
+  flex-direction: row-reverse;
+}
+
+.msg-bubble {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  max-width: 70%;
+}
+
+.chat-msg.self .msg-bubble {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.25);
+}
+
+.msg-author {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.3rem;
+}
+
+.msg-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 0;
+  margin-top: 1.25rem;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding-top: 1rem;
+}
+
+.chat-input-row .form-input {
+  flex: 1;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: var(--text-main);
+  outline: none;
+  font-family: var(--font-body);
+}
+
+.chat-input-row .form-input:focus {
+  border-color: var(--primary);
+}
+
+/* ── GitHub Commit Row ── */
+.commit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.2s;
+}
+
+.commit-row:hover {
+  background: rgba(255,255,255,0.06);
+}
+

@@ -1,32 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, Smartphone, ArrowRight, Hexagon } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-} from 'firebase/auth';
-import { auth } from '../../firebase';
+import { auth, isFirebaseConfigured } from '../../firebase';
 import './AuthModal.css';
 
-export function AuthModal({ isOpen, onClose, onLogin }) {
-  const [authMode, setAuthMode]       = useState('login');
-  const [signInMethod, setSignInMethod] = useState('select');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp]                 = useState('');
-  const [step, setStep]               = useState(1);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
-  const [confirmResult, setConfirmResult] = useState(null);
-  const recaptchaContainerRef         = useRef(null);
-  const recaptchaVerifierRef          = useRef(null);
+// ── Lazy-load Firebase auth methods only if configured ──────────────────────
+let GoogleAuthProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber;
 
-  // Cleanup reCAPTCHA on unmount
+if (isFirebaseConfigured) {
+  import('firebase/auth').then((mod) => {
+    GoogleAuthProvider    = mod.GoogleAuthProvider;
+    signInWithPopup       = mod.signInWithPopup;
+    RecaptchaVerifier     = mod.RecaptchaVerifier;
+    signInWithPhoneNumber = mod.signInWithPhoneNumber;
+  });
+}
+
+// ── Mock auth helpers ───────────────────────────────────────────────────────
+const MOCK_OTP = '1234'; // Any 4+ digit code works in mock mode
+
+export function AuthModal({ isOpen, onClose, onLogin }) {
+  const [authMode, setAuthMode]         = useState('login');
+  const [signInMethod, setSignInMethod]  = useState('select');
+  const [phoneNumber, setPhoneNumber]    = useState('');
+  const [otp, setOtp]                    = useState('');
+  const [step, setStep]                  = useState(1);
+  const [loading, setLoading]            = useState(false);
+  const [error, setError]                = useState('');
+  const [confirmResult, setConfirmResult] = useState(null);
+  const recaptchaRef                     = useRef(null);
+  const recaptchaVerifierRef             = useRef(null);
+
   useEffect(() => {
     return () => {
       if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
+        try { recaptchaVerifierRef.current.clear(); } catch (_) {}
         recaptchaVerifierRef.current = null;
       }
     };
@@ -41,19 +49,26 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
     setLoading(true);
     clearError();
     try {
-      const provider = new GoogleAuthProvider();
-      const result   = await signInWithPopup(auth, provider);
-      const user     = result.user;
-      onLogin({
-        name:   user.displayName || 'Google User',
-        email:  user.email,
-        photo:  user.photoURL,
-        uid:    user.uid,
-        method: 'Google',
-      });
+      if (isFirebaseConfigured && GoogleAuthProvider && signInWithPopup) {
+        // -- REAL Firebase Google Sign-In --
+        const provider = new GoogleAuthProvider();
+        const result   = await signInWithPopup(auth, provider);
+        const user     = result.user;
+        onLogin({
+          name:   user.displayName || 'Google User',
+          email:  user.email,
+          photo:  user.photoURL,
+          uid:    user.uid,
+          method: 'Google',
+        });
+      } else {
+        // -- MOCK: simulate Google login --
+        await new Promise(r => setTimeout(r, 900));
+        onLogin({ name: 'Google User', email: 'demo@gmail.com', method: 'Google' });
+      }
       onClose();
     } catch (err) {
-      setError(err.message || 'Google sign-in failed. Please try again.');
+      setError('Google sign-in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -65,32 +80,26 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
     setLoading(true);
     clearError();
 
-    const fullNumber = '+91' + phoneNumber.trim();
-
     try {
-      // Clear any existing verifier
-      if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
-        recaptchaVerifierRef.current = null;
+      if (isFirebaseConfigured && RecaptchaVerifier && signInWithPhoneNumber) {
+        // -- REAL Firebase Phone Auth --
+        if (recaptchaVerifierRef.current) {
+          try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+          recaptchaVerifierRef.current = null;
+        }
+        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+        const result = await signInWithPhoneNumber(auth, '+91' + phoneNumber, recaptchaVerifierRef.current);
+        setConfirmResult(result);
+      } else {
+        // -- MOCK: simulate SMS sent --
+        await new Promise(r => setTimeout(r, 1000));
+        setConfirmResult('mock');
       }
-
-      recaptchaVerifierRef.current = new RecaptchaVerifier(
-        auth,
-        'recaptcha-container',
-        { size: 'invisible' }
-      );
-
-      const result = await signInWithPhoneNumber(
-        auth,
-        fullNumber,
-        recaptchaVerifierRef.current
-      );
-      setConfirmResult(result);
       setStep(2);
     } catch (err) {
-      setError(err.message || 'Failed to send OTP. Check the number and try again.');
+      setError(err.message || 'Failed to send OTP. Please check the number.');
       if (recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current.clear();
+        try { recaptchaVerifierRef.current.clear(); } catch (_) {}
         recaptchaVerifierRef.current = null;
       }
     } finally {
@@ -101,19 +110,20 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
   // ── PHONE: VERIFY OTP ──────────────────────────────────────────────────────
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
-    if (!confirmResult) return;
     setLoading(true);
     clearError();
 
     try {
-      const result = await confirmResult.confirm(otp);
-      const user   = result.user;
-      onLogin({
-        name:   'User ' + phoneNumber.slice(-4),
-        phone:  phoneNumber,
-        uid:    user.uid,
-        method: 'Phone',
-      });
+      if (isFirebaseConfigured && confirmResult && confirmResult !== 'mock') {
+        // -- REAL Firebase OTP Verification --
+        const result = await confirmResult.confirm(otp);
+        const user   = result.user;
+        onLogin({ name: 'User ' + phoneNumber.slice(-4), phone: phoneNumber, uid: user.uid, method: 'Phone' });
+      } else {
+        // -- MOCK: accept any code --
+        await new Promise(r => setTimeout(r, 800));
+        onLogin({ name: 'User ' + phoneNumber.slice(-4), phone: phoneNumber, method: 'Phone' });
+      }
       onClose();
     } catch (err) {
       setError('Invalid OTP. Please check and try again.');
@@ -129,7 +139,7 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
     setOtp('');
     clearError();
     if (recaptchaVerifierRef.current) {
-      recaptchaVerifierRef.current.clear();
+      try { recaptchaVerifierRef.current.clear(); } catch (_) {}
       recaptchaVerifierRef.current = null;
     }
   };
@@ -151,42 +161,35 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
               ? 'Log in to continue building amazing projects.'
               : 'Sign up to find your perfect hackathon team.'}
           </p>
+          {!isFirebaseConfigured && (
+            <p className="auth-demo-badge mt-2">🔮 Demo Mode — any phone &amp; any code works</p>
+          )}
         </div>
 
         {error && (
-          <div className="auth-error mt-4">
-            ⚠️ {error}
-          </div>
+          <div className="auth-error mt-4">⚠️ {error}</div>
         )}
 
         <div className="auth-body mt-6">
+          {/* ── METHOD SELECT ── */}
           {signInMethod === 'select' && (
             <div className="auth-options flex-col gap-4">
-              <button
-                className="auth-provider-btn"
-                onClick={handleGoogleLogin}
-                disabled={loading}
-              >
+              <button className="auth-provider-btn" onClick={handleGoogleLogin} disabled={loading}>
                 <FcGoogle size={24} />
-                <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
+                <span>{loading ? 'Signing in…' : 'Continue with Google'}</span>
               </button>
 
-              <button
-                className="auth-provider-btn"
-                onClick={() => setSignInMethod('phone')}
-                disabled={loading}
-              >
+              <button className="auth-provider-btn" onClick={() => setSignInMethod('phone')} disabled={loading}>
                 <Smartphone size={24} className="text-primary" />
                 <span>Continue with Phone</span>
               </button>
             </div>
           )}
 
+          {/* ── PHONE ENTRY ── */}
           {signInMethod === 'phone' && step === 1 && (
             <form onSubmit={handlePhoneSubmit} className="phone-auth-form animation-fade-in">
-              <label className="text-sm font-semibold mb-2 block text-muted">
-                Enter Mobile Number (India)
-              </label>
+              <label className="text-sm font-semibold mb-2 block text-muted">Mobile Number</label>
               <div className="phone-input-group">
                 <span className="country-code">+91</span>
                 <input
@@ -199,50 +202,36 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
                 />
               </div>
 
-              {/* Invisible reCAPTCHA anchor */}
-              <div id="recaptcha-container" ref={recaptchaContainerRef}></div>
+              <div id="recaptcha-container" ref={recaptchaRef}></div>
 
               <button
                 type="submit"
                 className="btn-primary w-full mt-6 flex-center gap-2"
                 disabled={loading || phoneNumber.length < 10}
               >
-                {loading ? 'Sending OTP...' : 'Send OTP via SMS'} <ArrowRight size={16} />
+                {loading ? 'Sending OTP…' : 'Send OTP via SMS'} <ArrowRight size={16} />
               </button>
-              <button
-                type="button"
-                className="btn-text w-full mt-4 text-sm text-muted"
-                onClick={resetState}
-                disabled={loading}
-              >
+              <button type="button" className="btn-text w-full mt-4 text-sm text-muted" onClick={resetState} disabled={loading}>
                 ← Back to all options
               </button>
             </form>
           )}
 
+          {/* ── OTP ENTRY ── */}
           {signInMethod === 'phone' && step === 2 && (
             <form onSubmit={handleOtpSubmit} className="otp-auth-form animation-fade-in">
               <div className="text-center mb-6">
-                <p className="text-sm text-muted">
-                  OTP sent to <strong>+91 {phoneNumber}</strong>
-                </p>
-                <button
-                  type="button"
-                  className="btn-text text-xs text-primary mt-1"
-                  onClick={() => { setStep(1); clearError(); }}
-                  disabled={loading}
-                >
+                <p className="text-sm text-muted">OTP {isFirebaseConfigured ? 'sent' : '(demo — type any 4 digits)'} to <strong>+91 {phoneNumber}</strong></p>
+                <button type="button" className="btn-text text-xs text-primary mt-1" onClick={() => { setStep(1); clearError(); }} disabled={loading}>
                   Edit Number
                 </button>
               </div>
 
-              <label className="text-sm font-semibold mb-2 block text-muted text-center">
-                Enter OTP received via SMS
-              </label>
+              <label className="text-sm font-semibold mb-2 block text-muted text-center">Enter OTP</label>
               <input
                 type="text"
                 className="otp-input text-center"
-                placeholder="• • • • • •"
+                placeholder="• • • •"
                 maxLength={6}
                 value={otp}
                 onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
@@ -255,7 +244,7 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
                 className="btn-primary w-full mt-6 flex-center gap-2"
                 disabled={loading || otp.length < 4}
               >
-                {loading ? 'Verifying...' : 'Verify & Login'}
+                {loading ? 'Verifying…' : 'Verify & Login'}
               </button>
             </form>
           )}
