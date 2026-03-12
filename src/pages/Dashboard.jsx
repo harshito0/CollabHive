@@ -1,11 +1,23 @@
 import React from 'react';
-import { Activity, Clock, Users, ArrowRight, Code } from 'lucide-react';
+import { Activity, Clock, Users, ArrowRight, Code, Calendar, Flame } from 'lucide-react';
 import './Dashboard.css';
 
 const MOCK_PROJECTS = [
   { id: 1, name: 'E-commerce Redesign', role: 'Frontend Lead', progress: 75, members: 4, tech: ['React', 'Node'] },
   { id: 2, name: 'AI Mentor Dashboard', role: 'Full Stack', progress: 30, members: 2, tech: ['Vite', 'Gemini API'] },
 ];
+
+// ── GENERATE HEATMAP DATA ───────────────────────────────────────────────────
+const generateHeatmapData = () => {
+  const data = [];
+  const levels = [0, 1, 2, 3, 4]; // Activity levels
+  for (let i = 0; i < 91; i++) { // 13 weeks * 7 days
+    data.push(levels[Math.floor(Math.random() * levels.length)]);
+  }
+  return data;
+};
+
+const HEATMAP_DATA = generateHeatmapData();
 
 export function Dashboard() {
   return (
@@ -48,6 +60,48 @@ export function Dashboard() {
             <h3 className="stat-value">3</h3>
             <p className="stat-trend">1 new match</p>
           </div>
+        </div>
+      </div>
+
+      {/* ── ACTIVITY HEATMAP ── */}
+      <div className="heatmap-section glass-panel">
+        <div className="heatmap-header flex-between mb-4">
+          <div className="flex-center gap-2">
+            <Calendar size={20} className="text-primary" />
+            <h3>Contribution Activity</h3>
+          </div>
+          <div className="flex-center gap-2">
+            <Flame size={16} className="text-orange" />
+            <span className="text-sm font-semibold">12 day streak!</span>
+          </div>
+        </div>
+        
+        <div className="heatmap-grid-container">
+          <div className="heatmap-days-labels">
+            <span>Mon</span>
+            <span>Wed</span>
+            <span>Fri</span>
+          </div>
+          <div className="heatmap-grid">
+            {HEATMAP_DATA.map((level, i) => (
+              <div 
+                key={i} 
+                className={`heatmap-cell level-${level}`}
+                title={`${level} activities on day ${i + 1}`}
+              ></div>
+            ))}
+          </div>
+        </div>
+        <div className="heatmap-footer mt-4 flex-between text-xs text-muted">
+          <span>Less</span>
+          <div className="flex-center gap-1">
+            <div className="heatmap-cell level-0"></div>
+            <div className="heatmap-cell level-1"></div>
+            <div className="heatmap-cell level-2"></div>
+            <div className="heatmap-cell level-3"></div>
+            <div className="heatmap-cell level-4"></div>
+          </div>
+          <span>More</span>
         </div>
       </div>
 

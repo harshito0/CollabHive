@@ -19,6 +19,7 @@ const navItems = [
   { path: '/workspace', icon: LayoutDashboard, label: 'Workspace' },
   { path: '/hackathon', icon: Trophy, label: 'Hackathons' },
   { path: '/learning', icon: GraduationCap, label: 'Learning Paths' },
+  { path: '/recruiter', icon: Briefcase, label: 'Recruiter Hub' },
   { path: '/portfolio', icon: Briefcase, label: 'My Portfolio' },
 ];
 

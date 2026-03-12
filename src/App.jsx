@@ -8,6 +8,7 @@ import { Matchmaking } from './pages/Matchmaking';
 import { Workspace } from './pages/Workspace';
 import { Hackathon } from './pages/Hackathon';
 import { Portfolio } from './pages/Portfolio';
+import RecruiterHub from './pages/RecruiterHub';
 import { AuthModal } from './components/auth/AuthModal';
 import { ProfileSetup } from './components/auth/ProfileSetup';
 import './App.css';
@@ -52,6 +53,7 @@ function App() {
               <Route path="/workspace" element={<Workspace />} />
               <Route path="/hackathon" element={<Hackathon />} />
               <Route path="/learning" element={<Placeholder title="Learning Paths" />} />
+              <Route path="/recruiter" element={<RecruiterHub />} />
               <Route path="/portfolio" element={<Portfolio />} />
             </Routes>
           </div>

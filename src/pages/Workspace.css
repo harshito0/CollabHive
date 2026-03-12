@@ -348,3 +348,294 @@
   background: rgba(255,255,255,0.06);
 }
 
+/* ── Mini Git Hub ── */
+.minigit-container {
+  height: 100%;
+  animation: slideUp 0.4s ease-out;
+}
+
+.minigit-main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+.file-explorer {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.explorer-header {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 1rem;
+}
+
+.upload-btn-git {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-btn-git:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.upload-btn-git:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.file-list-git {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.file-item-git {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.file-item-git:hover {
+  background: rgba(255,255,255,0.05);
+  transform: translateX(4px);
+}
+
+.file-name-git {
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.file-meta-git {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.contributor-badge {
+  font-size: 0.7rem;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.file-size-git {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 60px;
+  text-align: right;
+}
+
+.progress-hub {
+  padding: 1.5rem;
+}
+
+.progress-bar-bg-git {
+  height: 10px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar-fill-git {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.stat-box-git {
+  background: rgba(0,0,0,0.2);
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  text-align: center;
+}
+
+.activity-feed {
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.activity-list-git {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activity-item-git {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.act-user-git {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.act-time-git {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.act-text-git {
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+}
+/* ── Live Coding Rooms ── */
+.livecode-container {
+  height: 100%;
+}
+
+.livecode-main {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.5rem;
+  height: 100%;
+}
+
+.editor-chrome {
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.editor-surface {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Fira Code', monospace;
+}
+
+.line-numbers {
+  width: 40px;
+  padding: 1rem 0;
+  background: #1a1a1a;
+  color: #5a5a5a;
+  text-align: right;
+  padding-right: 10px;
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+.code-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #d4d4d4;
+  padding: 1rem;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.mock-cursor {
+  position: absolute;
+  width: 2px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.s-cursor { background: #ec4899; }
+.a-cursor { background: #6366f1; }
+
+.cursor-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: white;
+  white-space: nowrap;
+}
+
+.s-cursor .cursor-label { background: #ec4899; }
+.a-cursor .cursor-label { background: #6366f1; }
+
+.user-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.user-pill-git {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.debug-output {
+  flex: 1;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-output {
+  background: #000;
+  padding: 1rem;
+  border-radius: 6px;
+  flex: 1;
+  line-height: 1.6;
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: white;
+  margin-left: 4px;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }

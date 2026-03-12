@@ -1,5 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { Layout, MessageSquare, MonitorPlay, Github, Plus, MoreHorizontal, Send, Trash2, GitBranch, Star } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Layout, MessageSquare, MonitorPlay, Github, Plus, MoreHorizontal, 
+  Send, Trash2, GitBranch, Star, FileCode, Folder, Upload, HardDrive, 
+  Activity, CheckCircle2, Code2, Terminal, Users2, Shield, AlertCircle
+} from 'lucide-react';
 import { Whiteboard } from '../components/Whiteboard';
 import './Workspace.css';
 
@@ -7,7 +11,8 @@ const TABS = [
   { id: 'tasks', label: 'Tasks', icon: Layout },
   { id: 'chat', label: 'Team Chat', icon: MessageSquare },
   { id: 'whiteboard', label: 'Whiteboard', icon: MonitorPlay },
-  { id: 'github', label: 'GitHub', icon: Github },
+  { id: 'minigit', label: 'Mini Git', icon: GitBranch },
+  { id: 'livecode', label: 'Live Code', icon: Code2 },
 ];
 
 const INITIAL_TASKS = {
@@ -29,10 +34,23 @@ const INITIAL_MESSAGES = [
   { id: 3, user: 'Raj', avatar: 'Raj', color: '10b981', text: 'On it. Standby for code review comments.', time: '2:33 PM' },
 ];
 
-const COMMITS = [
-  { hash: 'a3f1c2', author: 'Sarah', msg: 'feat: Add user authentication module', time: '2 hours ago', stars: 3 },
-  { hash: 'b8d4e9', author: 'Alex', msg: 'fix: Resolve cart state race condition', time: '4 hours ago', stars: 1 },
-  { hash: 'c9e2a7', author: 'Raj', msg: 'docs: Update API documentation', time: '1 day ago', stars: 2 },
+const INITIAL_FILES = [
+  { name: 'src', type: 'folder', children: [
+    { name: 'components', type: 'folder', children: [
+      { name: 'Auth.jsx', type: 'file', size: '2.4 KB', contributor: 'Sarah' },
+      { name: 'Navbar.jsx', type: 'file', size: '1.8 KB', contributor: 'Raj' }
+    ]},
+    { name: 'App.jsx', type: 'file', size: '4.2 KB', contributor: 'Alex' },
+    { name: 'index.css', type: 'file', size: '0.8 KB', contributor: 'Sarah' }
+  ]},
+  { name: 'package.json', type: 'file', size: '1.2 KB', contributor: 'Alex' },
+  { name: 'README.md', type: 'file', size: '3.1 KB', contributor: 'Raj' }
+];
+
+const ACTIVITIES = [
+  { id: 1, user: 'Sarah', action: 'Uploaded', target: 'login_v2.js', time: '10 mins ago' },
+  { id: 2, user: 'Alex', action: 'Modified', target: 'App.jsx', time: '45 mins ago' },
+  { id: 3, user: 'Raj', action: 'Deleted', target: 'temp.txt', time: '2 hours ago' },
 ];
 
 export function Workspace() {
@@ -41,10 +59,17 @@ export function Workspace() {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [chatInput, setChatInput] = useState('');
   const [newTaskInput, setNewTaskInput] = useState({ todo: '', inProgress: '', done: '' });
-  const [addingIn, setAddingIn] = useState(null); // which column is in "add" mode
-  const canvasRef = useRef(null);
-  const [drawing, setDrawing] = useState(false);
-  const [lastPos, setLastPos] = useState(null);
+  const [addingIn, setAddingIn] = useState(null);
+  
+  // Mini Git State
+  const [files, setFiles] = useState(INITIAL_FILES);
+  const [activities, setActivities] = useState(ACTIVITIES);
+  const [progress, setProgress] = useState(68);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Live Code State
+  const [code, setCode] = useState(`function ProjectInitializer() {\n  console.log("CollabHive is Live! 🚀");\n  return (\n    <div className="hive-core">\n      <h1>Welcome to the Shared Hive Room</h1>\n    </div>\n  );\n}`);
+  const [activeUsers, setActiveUsers] = useState(['Sarah (Architect)', 'Alex (Lead)', 'You']);
 
   // ── ADD TASK ───────────────────────────────────────────────────────────────
   const handleAddTask = (col) => {
@@ -56,12 +81,10 @@ export function Workspace() {
     setAddingIn(null);
   };
 
-  // ── DELETE TASK ─────────────────────────────────────────────────────────────
   const handleDeleteTask = (col, id) => {
     setTasks(prev => ({ ...prev, [col]: prev[col].filter(t => t.id !== id) }));
   };
 
-  // ── SEND CHAT ───────────────────────────────────────────────────────────────
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -76,32 +99,22 @@ export function Workspace() {
     setChatInput('');
   };
 
-  // ── WHITEBOARD CANVAS ──────────────────────────────────────────────────────
-  const getPos = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const client = e.touches ? e.touches[0] : e;
-    return { x: client.clientX - rect.left, y: client.clientY - rect.top };
-  };
-
-  const startDraw = (e) => { setDrawing(true); setLastPos(getPos(e)); };
-  const stopDraw  = ()    => { setDrawing(false); setLastPos(null); };
-  const draw = (e) => {
-    if (!drawing || !canvasRef.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(lastPos.x, lastPos.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = '#818cf8';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    setLastPos(pos);
-  };
-
-  const clearCanvas = () => {
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  // ── MINI GIT HANDLERS ──────────────────────────────────────────────────────
+  const simulateUpload = () => {
+    setIsUploading(true);
+    setTimeout(() => {
+      const newFile = { name: `component_${Math.floor(Math.random()*100)}.jsx`, type: 'file', size: '1.5 KB', contributor: 'You' };
+      setFiles(prev => [...prev, newFile]);
+      setActivities(prev => [{
+        id: Date.now(),
+        user: 'You',
+        action: 'Uploaded',
+        target: newFile.name,
+        time: 'Just now'
+      }, ...prev]);
+      setProgress(prev => Math.min(100, prev + 2));
+      setIsUploading(false);
+    }, 1500);
   };
 
   // ── RENDER TASK COLUMN ─────────────────────────────────────────────────────
@@ -238,34 +251,114 @@ export function Workspace() {
           </div>
         )}
 
-        {/* ─── GITHUB ─── */}
-        {activeTab === 'github' && (
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <div className="flex-between mb-6">
-              <div className="flex-center gap-3">
-                <GitBranch size={24} className="text-primary" />
-                <div>
-                  <h3>team/e-commerce-redesign</h3>
-                  <p className="text-muted text-sm">main branch · 24 commits</p>
+        {/* ─── MINI GIT ─── */}
+        {activeTab === 'minigit' && (
+          <div className="minigit-container">
+            <div className="minigit-main">
+              <div className="file-explorer glass-panel">
+                <div className="explorer-header flex-between mb-4">
+                  <div className="flex-center gap-2"><Folder size={18} className="text-primary" /><span className="font-semibold">Project Files</span></div>
+                  <button className="upload-btn-git" onClick={simulateUpload} disabled={isUploading}>
+                    {isUploading ? 'Uploading...' : <><Upload size={14} /> Upload File</>}
+                  </button>
+                </div>
+                <div className="file-list-git">
+                  {files.map((file, idx) => (
+                    <div key={idx} className="file-item-git">
+                      <div className="flex-center gap-3">
+                        {file.type === 'folder' ? <Folder size={16} className="text-secondary" /> : <FileCode size={16} className="text-muted" />}
+                        <span className="file-name-git">{file.name}</span>
+                      </div>
+                      <div className="file-meta-git"><span className="contributor-badge">{file.contributor || 'Shared'}</span><span className="file-size-git">{file.size || '--'}</span></div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm flex-center gap-2">
-                <Github size={16} /> View on GitHub
-              </a>
-            </div>
-            <h4 className="text-muted text-sm mb-4 font-semibold uppercase tracking-wider">Recent Commits</h4>
-            <div className="flex-col gap-3">
-              {COMMITS.map(c => (
-                <div key={c.hash} className="commit-row glass-panel">
-                  <div>
-                    <p className="font-semibold">{c.msg}</p>
-                    <p className="text-muted text-xs mt-1">{c.hash} · {c.author} · {c.time}</p>
-                  </div>
-                  <div className="flex-center gap-1 text-muted text-sm">
-                    <Star size={14} /> {c.stars}
+
+              <div className="minigit-sidebar">
+                <div className="progress-hub glass-panel mb-4">
+                  <div className="flex-between mb-3"><h4 className="text-sm font-semibold">Project Progress</h4><span className="text-primary font-bold">{progress}%</span></div>
+                  <div className="progress-bar-bg-git"><div className="progress-bar-fill-git" style={{ width: `${progress}%` }}></div></div>
+                  <div className="progress-stats mt-4 grid grid-cols-2 gap-4">
+                    <div className="stat-box-git"><p className="text-xs text-muted">Tasks</p><p className="font-semibold">12/18</p></div>
+                    <div className="stat-box-git"><p className="text-xs text-muted">Uptime</p><p className="font-semibold text-success">99.9%</p></div>
                   </div>
                 </div>
-              ))}
+                <div className="activity-feed glass-panel">
+                  <h4 className="text-sm font-semibold mb-3 flex-center gap-2" style={{ justifyContent: 'flex-start' }}><Activity size={14} className="text-primary" /> Live Activity</h4>
+                  <div className="activity-list-git">
+                    {activities.map(act => (
+                      <div key={act.id} className="activity-item-git">
+                        <div className="flex-between"><span className="act-user-git">{act.user}</span><span className="act-time-git">{act.time}</span></div>
+                        <p className="act-text-git">{act.action} <span className="text-primary">{act.target}</span></p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── LIVE CODE ─── */}
+        {activeTab === 'livecode' && (
+          <div className="livecode-container">
+            <div className="livecode-main">
+              <div className="editor-chrome glass-panel">
+                <div className="chrome-header flex-between px-4 py-2 border-b">
+                  <div className="flex-center gap-2">
+                    <Terminal size={14} className="text-muted" />
+                    <span className="text-xs font-mono text-muted">ProjectInitializer.jsx</span>
+                  </div>
+                  <div className="flex-center gap-4">
+                    <span className="text-xs text-success flex-center gap-1"><CheckCircle2 size={12} /> Syncing</span>
+                    <button className="btn-primary text-xs py-1 px-3">Run Code</button>
+                  </div>
+                </div>
+                <div className="editor-surface">
+                  <div className="line-numbers">
+                    {code.split('\n').map((_, i) => <div key={i}>{i+1}</div>)}
+                  </div>
+                  <textarea 
+                    className="code-textarea"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    spellCheck="false"
+                  />
+                  {/* Mock Multi-Cursors */}
+                  {activeTab === 'livecode' && (
+                    <>
+                      <div className="mock-cursor s-cursor" style={{ top: '60px', left: '200px' }}><span className="cursor-label">Sarah</span></div>
+                      <div className="mock-cursor a-cursor" style={{ top: '120px', left: '150px' }}><span className="cursor-label">Alex</span></div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="livecode-sidebar">
+                <div className="active-users-box glass-panel mb-4">
+                  <h4 className="text-sm font-semibold mb-3 flex-center gap-2" style={{ justifyContent: 'flex-start' }}><Users2 size={14} className="text-primary" /> Coding Together</h4>
+                  <div className="user-pills">
+                    {activeUsers.map((u, i) => (
+                      <div key={i} className="user-pill-git">
+                        <div className="online-dot"></div>
+                        <span>{u}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="debug-output glass-panel">
+                  <h4 className="text-sm font-semibold mb-2 flex-center gap-2" style={{ justifyContent: 'flex-start' }}><AlertCircle size={14} className="text-orange" /> Debug Output</h4>
+                  <div className="terminal-output font-mono text-xs">
+                    <p className="text-muted">[10:24:01] Initializing Hive Server...</p>
+                    <p className="text-success">[10:24:02] hot reload active</p>
+                    <p className="text-primary text-xs mt-2">$ npm run dev</p>
+                    <p className="opacity-50 mt-1">Ready at http://localhost:5173</p>
+                    <div className="terminal-cursor"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
