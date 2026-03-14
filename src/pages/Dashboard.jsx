@@ -35,7 +35,7 @@ export function Dashboard() {
           <h1>Welcome back, Alex! 👋</h1>
           <p className="text-muted">Here's what's happening with your projects today.</p>
         </div>
-        <button className="btn-primary">Generate New Idea 💡</button>
+        <button className="btn-primary" onClick={() => alert('Generating new project idea with AI...')}>Generate New Idea 💡</button>
       </div>
       
       <div className="stats-grid">
@@ -116,7 +116,7 @@ export function Dashboard() {
       <div className="projects-section">
         <div className="section-header flex-between">
           <h2>Active Projects</h2>
-          <button className="btn-secondary text-sm flex-center gap-2">
+          <button className="btn-secondary text-sm flex-center gap-2" onClick={() => alert('Navigating to Projects tab...')}>
             View All <ArrowRight size={16} />
           </button>
         </div>

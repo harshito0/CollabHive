@@ -86,7 +86,7 @@ export function Hackathon() {
               <input type="url" placeholder="https://..." className="form-input" />
             </div>
 
-            <button type="button" className="btn-primary w-full mt-4 flex-center gap-2 text-lg">
+            <button type="button" className="btn-primary w-full mt-4 flex-center gap-2 text-lg" onClick={() => alert('Project Submitted successfully!')}>
               <CloudLightning size={20} /> Submit Project
             </button>
             <p className="text-center text-xs text-muted mt-2">You can update your submission until the timer ends.</p>

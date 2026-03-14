@@ -64,10 +64,10 @@ export function Portfolio() {
           <div className="preview-actions flex-between mb-4">
             <h3 className="flex-center gap-2"><Eye size={20} /> Live Preview</h3>
             <div className="flex-center gap-4">
-              <button className="btn-secondary text-sm flex-center gap-2">
+              <button className="btn-secondary text-sm flex-center gap-2" onClick={() => alert('Link copied to clipboard!')}>
                 <Share2 size={16} /> Share Link
               </button>
-              <button className="btn-primary text-sm flex-center gap-2">
+              <button className="btn-primary text-sm flex-center gap-2" onClick={() => alert('Exporting portfolio code as ZIP...')}>
                 <Download size={16} /> Export Code
               </button>
             </div>

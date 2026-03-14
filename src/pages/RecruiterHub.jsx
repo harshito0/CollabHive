@@ -54,7 +54,7 @@ export default function RecruiterHub() {
           />
         </div>
         <div className="filter-group flex-center gap-3">
-          <button className="btn-secondary flex-center gap-2"><Filter size={16} /> Filters</button>
+          <button className="btn-secondary flex-center gap-2" onClick={() => alert('Opening advanced filters...')}><Filter size={16} /> Filters</button>
           <select 
             className="glass-select"
             value={filterSkill}
@@ -119,7 +119,7 @@ export default function RecruiterHub() {
               <span className={`status-badge ${(talent.status || 'Available').toLowerCase().replace(/\s/g, '-')}`}>
                 {talent.status || 'Available'}
               </span>
-              <button className="btn-primary-small flex-center gap-2">
+              <button className="btn-primary-small flex-center gap-2" onClick={() => alert(`Viewing Portfolio for ${talent.name}...`)}>
                 View Portfolio <ArrowUpRight size={14} />
               </button>
             </div>

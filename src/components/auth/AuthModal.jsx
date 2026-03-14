@@ -4,17 +4,12 @@ import { FcGoogle } from 'react-icons/fc';
 import { auth, isFirebaseConfigured } from '../../firebase';
 import './AuthModal.css';
 
-// ── Lazy-load Firebase auth methods only if configured ──────────────────────
-let GoogleAuthProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber;
-
-if (isFirebaseConfigured) {
-  import('firebase/auth').then((mod) => {
-    GoogleAuthProvider    = mod.GoogleAuthProvider;
-    signInWithPopup       = mod.signInWithPopup;
-    RecaptchaVerifier     = mod.RecaptchaVerifier;
-    signInWithPhoneNumber = mod.signInWithPhoneNumber;
-  });
-}
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber 
+} from 'firebase/auth';
 
 // ── Mock auth helpers ───────────────────────────────────────────────────────
 const MOCK_OTP = '1234'; // Any 4+ digit code works in mock mode
