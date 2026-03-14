@@ -1,31 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Smartphone, ArrowRight, Hexagon } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
-import { auth, isFirebaseConfigured } from '../../firebase';
+import { auth, db, isFirebaseConfigured, githubProvider } from '../../firebase';
+import { useToast } from '../layout/ToastContainer';
 import './AuthModal.css';
 
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  RecaptchaVerifier, 
-  signInWithPhoneNumber 
+import {
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
 } from 'firebase/auth';
-
-// ── Mock auth helpers ───────────────────────────────────────────────────────
-const MOCK_OTP = '1234'; // Any 4+ digit code works in mock mode
+import { doc, getDoc } from 'firebase/firestore';
 
 export function AuthModal({ isOpen, onClose, onLogin }) {
-  const [authMode, setAuthMode]         = useState('login');
+  const [authMode, setAuthMode]          = useState('login');
   const [signInMethod, setSignInMethod]  = useState('select');
   const [phoneNumber, setPhoneNumber]    = useState('');
-  const [otp, setOtp]                    = useState('');
-  const [step, setStep]                  = useState(1);
-  const [loading, setLoading]            = useState(false);
-  const [error, setError]                = useState('');
-  const [confirmResult, setConfirmResult] = useState(null);
-  const recaptchaRef                     = useRef(null);
-  const recaptchaVerifierRef             = useRef(null);
+  const [otp, setOtp]                   = useState('');
+  const [step, setStep]                 = useState(1);
+  const [loading, setLoading]           = useState(false);
+  const confirmResult = useRef(null);
+  const recaptchaVerifierRef = useRef(null);
+  const { toast } = useToast();
 
+  // Clear reCAPTCHA verifier on unmount
   useEffect(() => {
     return () => {
       if (recaptchaVerifierRef.current) {
@@ -37,91 +37,178 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
 
   if (!isOpen) return null;
 
-  const clearError = () => setError('');
+  // No longer using local error state, using toasts instead.
 
-  // ── GOOGLE SIGN-IN ─────────────────────────────────────────────────────────
+  // ── Helper: ensure a fresh reCAPTCHA verifier ────────────────────────────
+  const getRecaptchaVerifier = () => {
+    // Clear any stale verifier first
+    if (recaptchaVerifierRef.current) {
+      try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+      recaptchaVerifierRef.current = null;
+    }
+    recaptchaVerifierRef.current = new RecaptchaVerifier(
+      auth,
+      'recaptcha-container',
+      { size: 'invisible' }
+    );
+    return recaptchaVerifierRef.current;
+  };
+
+  // ── GOOGLE SIGN-IN ───────────────────────────────────────────────────────
   const handleGoogleLogin = async () => {
     setLoading(true);
-    clearError();
     try {
-      if (isFirebaseConfigured && GoogleAuthProvider && signInWithPopup) {
-        // -- REAL Firebase Google Sign-In --
+      if (isFirebaseConfigured) {
         const provider = new GoogleAuthProvider();
         const result   = await signInWithPopup(auth, provider);
         const user     = result.user;
-        onLogin({
-          name:   user.displayName || 'Google User',
-          email:  user.email,
-          photo:  user.photoURL,
-          uid:    user.uid,
-          method: 'Google',
-        });
+        // Step 1: Check Firestore for existing profile
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          // Returning user
+          onLogin({
+            ...userSnap.data(),
+            method: 'Google'
+          });
+          toast.success(`Welcome back, ${userSnap.data().name}!`);
+        } else {
+          // New user -> Trigger Profile Setup
+          onLogin({
+            name:   user.displayName || '',
+            email:  user.email,
+            photo:  user.photoURL,
+            uid:    user.uid,
+            method: 'Google',
+            isNewUser: true
+          });
+        }
       } else {
-        // -- MOCK: simulate Google login --
+        // Demo fallback
         await new Promise(r => setTimeout(r, 900));
         onLogin({ name: 'Google User', email: 'demo@gmail.com', method: 'Google' });
       }
       onClose();
     } catch (err) {
-      setError('Google sign-in failed. Please try again.');
+      console.error('Google login error:', err);
+      toast.error('Google login failed: ' + (err.code || 'Please try again.'));
     } finally {
       setLoading(false);
     }
   };
 
-  // ── PHONE: SEND OTP ────────────────────────────────────────────────────────
+  // ── GITHUB SIGN-IN ───────────────────────────────────────────────────────
+  const handleGithubLogin = async () => {
+    setLoading(true);
+    try {
+      if (isFirebaseConfigured) {
+        const result = await signInWithPopup(auth, githubProvider);
+        const user = result.user;
+        
+        // This gives you a GitHub Access Token. You can use it to access the GitHub API.
+        const credential = GithubAuthProvider.credentialFromResult(result);
+        const token = credential.accessToken;
+
+        // Step 1: Check Firestore for existing profile
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          // Returning user
+          onLogin({
+            ...userSnap.data(),
+            method: 'GitHub',
+            githubToken: token
+          });
+          toast.success(`Welcome back, ${userSnap.data().name}!`);
+        } else {
+          // New user -> Trigger Profile Setup
+          onLogin({
+            name: user.displayName || '',
+            email: user.email,
+            photo: user.photoURL,
+            uid: user.uid,
+            method: 'GitHub',
+            githubToken: token,
+            isNewUser: true
+          });
+        }
+      } else {
+        await new Promise(r => setTimeout(r, 900));
+        onLogin({ name: 'GitHub Demo User', email: 'demo-gh@github.com', method: 'GitHub' });
+        toast.success('Signed in with GitHub (Demo)');
+      }
+      onClose();
+    } catch (err) {
+      console.error('GitHub login error:', err);
+      toast.error('GitHub login failed: ' + (err.code || 'Check your internet connection.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── PHONE: SEND OTP ──────────────────────────────────────────────────────
   const handlePhoneSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    clearError();
+
+    if (!isFirebaseConfigured) {
+      await new Promise(r => setTimeout(r, 1000));
+      confirmResult.current = 'mock';
+      setStep(2);
+      setLoading(false);
+      return;
+    }
 
     try {
-      if (isFirebaseConfigured && RecaptchaVerifier && signInWithPhoneNumber) {
-        // -- REAL Firebase Phone Auth --
-        if (recaptchaVerifierRef.current) {
-          try { recaptchaVerifierRef.current.clear(); } catch (_) {}
-          recaptchaVerifierRef.current = null;
-        }
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
-        const result = await signInWithPhoneNumber(auth, '+91' + phoneNumber, recaptchaVerifierRef.current);
-        setConfirmResult(result);
-      } else {
-        // -- MOCK: simulate SMS sent --
-        await new Promise(r => setTimeout(r, 1000));
-        setConfirmResult('mock');
-      }
+      const verifier = getRecaptchaVerifier();
+      // Explicitly render the invisible reCAPTCHA widget before use
+      await verifier.render();
+      const result = await signInWithPhoneNumber(auth, '+91' + phoneNumber, verifier);
+      confirmResult.current = result;
       setStep(2);
+      toast.info('OTP sent to your phone');
     } catch (err) {
-      setError(err.message || 'Failed to send OTP. Please check the number.');
+      console.error('Phone OTP error:', err);
+      // Clean up reCAPTCHA on failure so the next attempt works
       if (recaptchaVerifierRef.current) {
         try { recaptchaVerifierRef.current.clear(); } catch (_) {}
         recaptchaVerifierRef.current = null;
       }
+      // Give a readable error message
+      let msg = 'Failed to send OTP. ';
+      if (err.code === 'auth/invalid-phone-number')    msg += 'Invalid phone number format.';
+      else if (err.code === 'auth/too-many-requests')  msg += 'Too many attempts. Please wait and try again.';
+      else if (err.code === 'auth/operation-not-allowed') msg += 'Phone auth is not enabled in Firebase Console.';
+      else msg += err.message || 'Please check the number.';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── PHONE: VERIFY OTP ──────────────────────────────────────────────────────
+  // ── PHONE: VERIFY OTP ────────────────────────────────────────────────────
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    clearError();
 
     try {
-      if (isFirebaseConfigured && confirmResult && confirmResult !== 'mock') {
-        // -- REAL Firebase OTP Verification --
-        const result = await confirmResult.confirm(otp);
+      if (isFirebaseConfigured && confirmResult.current && confirmResult.current !== 'mock') {
+        const result = await confirmResult.current.confirm(otp);
         const user   = result.user;
         onLogin({ name: 'User ' + phoneNumber.slice(-4), phone: phoneNumber, uid: user.uid, method: 'Phone' });
+        toast.success('Logged in successfully!');
       } else {
-        // -- MOCK: accept any code --
+        // Demo mode — accept any code
         await new Promise(r => setTimeout(r, 800));
         onLogin({ name: 'User ' + phoneNumber.slice(-4), phone: phoneNumber, method: 'Phone' });
+        toast.success('Demo Login Success');
       }
       onClose();
     } catch (err) {
-      setError('Invalid OTP. Please check and try again.');
+      console.error('OTP verify error:', err);
+      toast.error('Invalid OTP. Please check and try again.');
     } finally {
       setLoading(false);
     }
@@ -132,7 +219,6 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
     setStep(1);
     setPhoneNumber('');
     setOtp('');
-    clearError();
     if (recaptchaVerifierRef.current) {
       try { recaptchaVerifierRef.current.clear(); } catch (_) {}
       recaptchaVerifierRef.current = null;
@@ -141,6 +227,12 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
 
   return (
     <div className="modal-overlay">
+      {/* 
+        ⚠️ Keep recaptcha-container OUTSIDE the conditional so it
+        is always present in the DOM when Firebase needs to render into it.
+      */}
+      <div id="recaptcha-container" style={{ position: 'fixed', bottom: 0, left: 0 }} />
+
       <div className="auth-modal glass-panel animation-fade-in">
         <button className="close-btn" onClick={onClose} disabled={loading}>
           <X size={20} />
@@ -161,9 +253,7 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
           )}
         </div>
 
-        {error && (
-          <div className="auth-error mt-4">⚠️ {error}</div>
-        )}
+        {/* Error notifications now handled by toasts */}
 
         <div className="auth-body mt-6">
           {/* ── METHOD SELECT ── */}
@@ -171,12 +261,17 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
             <div className="auth-options flex-col gap-4">
               <button className="auth-provider-btn" onClick={handleGoogleLogin} disabled={loading}>
                 <FcGoogle size={24} />
-                <span>{loading ? 'Signing in…' : 'Continue with Google'}</span>
+                <span>Google</span>
+              </button>
+
+              <button className="auth-provider-btn" onClick={handleGithubLogin} disabled={loading}>
+                <Hexagon size={24} className="text-primary" />
+                <span>GitHub</span>
               </button>
 
               <button className="auth-provider-btn" onClick={() => setSignInMethod('phone')} disabled={loading}>
-                <Smartphone size={24} className="text-primary" />
-                <span>Continue with Phone</span>
+                <Smartphone size={24} className="text-secondary" />
+                <span>Phone</span>
               </button>
             </div>
           )}
@@ -197,8 +292,6 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
                 />
               </div>
 
-              <div id="recaptcha-container" ref={recaptchaRef}></div>
-
               <button
                 type="submit"
                 className="btn-primary w-full mt-6 flex-center gap-2"
@@ -217,7 +310,7 @@ export function AuthModal({ isOpen, onClose, onLogin }) {
             <form onSubmit={handleOtpSubmit} className="otp-auth-form animation-fade-in">
               <div className="text-center mb-6">
                 <p className="text-sm text-muted">OTP {isFirebaseConfigured ? 'sent' : '(demo — type any 4 digits)'} to <strong>+91 {phoneNumber}</strong></p>
-                <button type="button" className="btn-text text-xs text-primary mt-1" onClick={() => { setStep(1); clearError(); }} disabled={loading}>
+                <button type="button" className="btn-text text-xs text-primary mt-1" onClick={() => { setStep(1); }} disabled={loading}>
                   Edit Number
                 </button>
               </div>

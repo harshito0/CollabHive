@@ -1,34 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Briefcase, Star, MapPin, Code, Trophy, ArrowUpRight } from 'lucide-react';
 import './RecruiterHub.css';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useToast } from '../components/layout/ToastContainer';
 
 export default function RecruiterHub() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSkill, setFilterSkill] = useState('All');
   const [talent, setTalent] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!db) return;
+    setLoading(true);
 
-    const q = query(collection(db, 'users'), orderBy('collabScore', 'desc'));
+    // Dynamic Query Architecture
+    let q;
+    if (filterSkill === 'All' || filterSkill === 'All Skills') {
+      q = query(collection(db, 'users'), orderBy('collabScore', 'desc'));
+    } else {
+      // NOTE: This requires a composite index in Firestore: 
+      // Collection: users, Fields: skills (array), collabScore (desc)
+      q = query(
+        collection(db, 'users'), 
+        where('skills', 'array-contains', filterSkill),
+        orderBy('collabScore', 'desc')
+      );
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTalent(users);
       setLoading(false);
+    }, (error) => {
+      console.error("Firestore Query Error:", error);
+      if (error.code === 'failed-precondition') {
+        toast.error("Query index missing. Generating in Firebase Console...");
+      } else {
+        toast.error("Failed to fetch talent: " + error.message);
+      }
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [filterSkill]);
 
   const filteredTalent = talent.filter(t => {
     const searchLower = searchTerm.toLowerCase();
+    // Skill filtering is now handled server-side in Firestore
     const matchesSearch = (t.name || '').toLowerCase().includes(searchLower) || 
-                          (t.role || '').toLowerCase().includes(searchLower);
-    const matchesSkill = filterSkill === 'All' || (t.skills && t.skills.includes(filterSkill));
-    return matchesSearch && matchesSkill;
+                          (t.role || '').toLowerCase().includes(searchLower) ||
+                          (t.bio || '').toLowerCase().includes(searchLower);
+    return matchesSearch;
   });
 
   return (

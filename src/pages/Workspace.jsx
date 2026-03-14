@@ -4,8 +4,8 @@ import {
   Activity, CheckCircle2, Code2, Terminal, Users2, AlertCircle
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import { updateCollabScore } from '../utils/collabScore';
 import { Whiteboard } from '../components/Whiteboard';
 import './Workspace.css';
@@ -18,8 +18,11 @@ const TABS = [
   { id: 'livecode', label: 'Live Code', icon: Code2 },
 ];
 
-export function Workspace() {
+export function Workspace({ user }) {
   const [activeTab, setActiveTab] = useState('tasks');
+  const [projects, setProjects] = useState([]);
+  const [currentProjectId, setCurrentProjectId] = useState(null);
+  const [activeProject, setActiveProject] = useState(null);
   const [tasks, setTasks] = useState({ todo: [], inProgress: [], done: [] });
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -38,34 +41,67 @@ export function Workspace() {
 
   // ── FIREBASE EFFECTS ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!db) return;
+    if (!db || !auth.currentUser) return;
 
-    // Chat Listener
-    const chatQuery = query(collection(db, 'workspace_messages'), orderBy('timestamp', 'asc'));
+    // 1. Fetch Projects where user is a member
+    const projectsQuery = query(
+      collection(db, 'projects'),
+      where('members', 'array-contains', auth.currentUser.uid)
+    );
+
+    const unsubscribeProjects = onSnapshot(projectsQuery, (snapshot) => {
+      const projs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProjects(projs);
+      if (projs.length > 0 && !currentProjectId) {
+        setCurrentProjectId(projs[0].id);
+        setActiveProject(projs[0]);
+      }
+    });
+
+    return () => unsubscribeProjects();
+  }, [user]);
+
+  useEffect(() => {
+    if (!db || !currentProjectId) return;
+
+    // 2. Chat Listener (Project Specific)
+    const chatQuery = query(
+      collection(db, 'projects', currentProjectId, 'messages'), 
+      orderBy('timestamp', 'asc')
+    );
     const unsubscribeChat = onSnapshot(chatQuery, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(msgs);
     });
 
-    // Tasks Listener
-    const unsubscribeTasks = onSnapshot(collection(db, 'workspace_tasks'), (snapshot) => {
-      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const organized = {
-        todo: allTasks.filter(t => t.status === 'todo'),
-        inProgress: allTasks.filter(t => t.status === 'inProgress'),
-        done: allTasks.filter(t => t.status === 'done')
-      };
-      setTasks(organized);
-    });
+    // 3. Tasks Listener (Project Specific)
+    const unsubscribeTasks = onSnapshot(
+      collection(db, 'projects', currentProjectId, 'tasks'), 
+      (snapshot) => {
+        const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const organized = {
+          todo: allTasks.filter(t => t.status === 'todo'),
+          inProgress: allTasks.filter(t => t.status === 'inProgress'),
+          done: allTasks.filter(t => t.status === 'done')
+        };
+        setTasks(organized);
+      }
+    );
 
-    // Files Listener
-    const unsubscribeFiles = onSnapshot(collection(db, 'workspace_files'), (snapshot) => {
-      const allFiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setFiles(allFiles);
-    });
+    // 4. Files Listener (Project Specific)
+    const unsubscribeFiles = onSnapshot(
+      collection(db, 'projects', currentProjectId, 'files'), 
+      (snapshot) => {
+        const allFiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setFiles(allFiles);
+      }
+    );
 
-    // Activities Listener
-    const activityQuery = query(collection(db, 'workspace_activities'), orderBy('timestamp', 'desc'));
+    // 5. Activities Listener (Project Specific)
+    const activityQuery = query(
+      collection(db, 'projects', currentProjectId, 'activities'), 
+      orderBy('timestamp', 'desc')
+    );
     const unsubscribeActivities = onSnapshot(activityQuery, (snapshot) => {
       const allActivities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setActivities(allActivities);
@@ -77,7 +113,7 @@ export function Workspace() {
       unsubscribeFiles();
       unsubscribeActivities();
     };
-  }, []);
+  }, [currentProjectId]);
 
   // ── HANDLERS (FIRESTORE WRITES) ──────────────────────────────────────────
   const handleAddTask = async (col) => {
@@ -85,11 +121,13 @@ export function Workspace() {
     if (!title || !db) return;
     
     try {
-      await addDoc(collection(db, 'workspace_tasks'), {
+      await addDoc(collection(db, 'projects', currentProjectId, 'tasks'), {
         title,
         tag: col === 'todo' ? 'New' : col === 'inProgress' ? 'Active' : 'Done',
         status: col,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        authorId: auth.currentUser?.uid,
+        authorName: user?.name || 'Anonymous'
       });
       setNewTaskInput(prev => ({ ...prev, [col]: '' }));
       setAddingIn(null);
@@ -104,7 +142,7 @@ export function Workspace() {
   const handleDeleteTask = async (id) => {
     if (!db) return;
     try {
-      await deleteDoc(doc(db, 'workspace_tasks', id));
+      await deleteDoc(doc(db, 'projects', currentProjectId, 'tasks', id));
     } catch (error) {
       console.error("Error deleting task:", error);
     }
@@ -115,13 +153,14 @@ export function Workspace() {
     if (!chatInput.trim() || !db) return;
 
     try {
-      await addDoc(collection(db, 'workspace_messages'), {
-        user: 'You',
-        avatar: 'User',
+      await addDoc(collection(db, 'projects', currentProjectId, 'messages'), {
+        user: user?.name || 'You',
+        avatar: user?.name || 'User',
         color: '6366f1',
         text: chatInput,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        userId: auth.currentUser?.uid
       });
       setChatInput('');
       
@@ -146,10 +185,10 @@ export function Workspace() {
         timestamp: serverTimestamp()
       };
       
-      await addDoc(collection(db, 'workspace_files'), newFile);
+      await addDoc(collection(db, 'projects', currentProjectId, 'files'), newFile);
       
-      await addDoc(collection(db, 'workspace_activities'), {
-        user: 'You',
+      await addDoc(collection(db, 'projects', currentProjectId, 'activities'), {
+        user: user?.name || 'You',
         action: 'Uploaded',
         target: fileName,
         time: 'Just now',
@@ -223,10 +262,26 @@ export function Workspace() {
       <div className="workspace-header">
         <div>
           <div className="flex-center gap-2" style={{ justifyContent: 'flex-start' }}>
-            <span className="badge-project-status">Active Sprint</span>
-            <span className="text-muted text-sm">Ends in {tasks.todo.length + tasks.inProgress.length} tasks</span>
+            <span className="badge-project-status">{activeProject?.status || 'Active Project'}</span>
+            <span className="text-muted text-sm">
+              {projects.length > 1 ? (
+                <select 
+                  className="glass-select-small" 
+                  value={currentProjectId}
+                  onChange={(e) => {
+                    const p = projects.find(proj => proj.id === e.target.value);
+                    setCurrentProjectId(e.target.value);
+                    setActiveProject(p);
+                  }}
+                >
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              ) : (
+                activeProject?.name || 'My Workspace'
+              )}
+            </span>
           </div>
-          <h1 className="mt-2 text-gradient">Live Project Feed</h1>
+          <h1 className="mt-2 text-gradient">{activeProject?.name || 'Shared Workspace'}</h1>
         </div>
         <div className="header-team flex-center">
           <div className="avatar-stack">

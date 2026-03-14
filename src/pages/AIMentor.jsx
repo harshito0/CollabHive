@@ -5,18 +5,12 @@ import {
 } from 'lucide-react';
 import './AIMentor.css';
 
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  serverTimestamp,
-  limit
-} from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, where } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { logActivity } from '../utils/activityUtils';
+import { generateTechnicalRoadmap, validateStartupIdea } from '../services/aiService';
 
-export function AIMentor() {
+export function AIMentor({ user }) {
   const [activeMode, setActiveMode] = useState('roadmap'); // 'roadmap' or 'validator'
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -39,10 +33,15 @@ export function AIMentor() {
 
   // ── FIREBASE LISTENERS ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!db) return;
+    if (!db || !auth.currentUser) return;
 
-    // Listen for most recent roadmap/validation
-    const resultsQuery = query(collection(db, 'mentor_results'), orderBy('timestamp', 'desc'), limit(1));
+    // Listen for most recent roadmap/validation for THIS user
+    const resultsQuery = query(
+      collection(db, 'mentor_results'), 
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('timestamp', 'desc'), 
+      limit(1)
+    );
     const unsubscribeResults = onSnapshot(resultsQuery, (snapshot) => {
       if (!snapshot.empty) {
         const data = snapshot.docs[0].data();
@@ -56,8 +55,12 @@ export function AIMentor() {
       }
     });
 
-    // Listen for mentor messages
-    const chatQuery = query(collection(db, 'mentor_messages'), orderBy('timestamp', 'asc'));
+    // Listen for mentor messages for THIS user
+    const chatQuery = query(
+      collection(db, 'mentor_messages'), 
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('timestamp', 'asc')
+    );
     const unsubscribeChat = onSnapshot(chatQuery, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(msgs.length > 0 ? msgs : [
@@ -78,17 +81,12 @@ export function AIMentor() {
     setIsGenerating(true);
     
     if (activeMode === 'roadmap') {
-      // Simulate Roadmap generation
-      setTimeout(async () => {
-        const roadmapData = {
-          features: ['User Authentication', 'Product Catalog', 'Shopping Cart', 'Payment Gateway Integration', 'Admin Dashboard'],
-          folderStructure: `src/\n  components/\n  pages/\n  context/\n  services/\n  utils/`,
-          schema: `User { id, email, password }\nProduct { id, name, price, stock }\nOrder { id, userId, total, status }`,
-          endpoints: `GET /api/products\nPOST /api/orders\nPOST /api/auth/login`
-        };
+      try {
+        const roadmapData = await generateTechnicalRoadmap(prompt, user);
 
         await addDoc(collection(db, 'mentor_results'), {
           type: 'roadmap',
+          userId: auth.currentUser.uid,
           prompt: prompt,
           data: roadmapData,
           timestamp: serverTimestamp()
@@ -96,34 +94,24 @@ export function AIMentor() {
 
         await addDoc(collection(db, 'mentor_messages'), {
           role: 'ai',
+          userId: auth.currentUser.uid,
           text: `Roadmap generated for: ${prompt}. How can I help you refine the technical architecture?`,
           timestamp: serverTimestamp()
         });
 
+        logActivity(auth.currentUser.uid, 'prototype', `Architected Roadmap: ${prompt}`);
+      } catch (err) {
+        console.error("Roadmap Error:", err);
+      } finally {
         setIsGenerating(false);
-      }, 1500);
+      }
     } else {
-      // Simulate Idea Validation
-      setTimeout(async () => {
-        const validationData = {
-          score: 8.5,
-          marketDemand: 'High',
-          competition: 'Medium',
-          monetization: 'SaaS Subscription / Freemium',
-          analysis: [
-            { category: 'Technical Feasibility', score: 90 },
-            { category: 'Profitability', score: 82 },
-            { category: 'Community Interest', score: 88 }
-          ],
-          suggestions: [
-            'Focus on a niche developer audience first.',
-            'Integrate with existing CI/CD tools to increase stickiness.',
-            'Implement a "Creator Fund" to drive viral growth.'
-          ]
-        };
+      try {
+        const validationData = await validateStartupIdea(prompt);
 
         await addDoc(collection(db, 'mentor_results'), {
           type: 'validator',
+          userId: auth.currentUser.uid,
           prompt: prompt,
           data: validationData,
           timestamp: serverTimestamp()
@@ -131,12 +119,17 @@ export function AIMentor() {
 
         await addDoc(collection(db, 'mentor_messages'), {
           role: 'ai',
+          userId: auth.currentUser.uid,
           text: `Analysis complete for: ${prompt}. The monetization model looks promising. Any specific questions on the market strategy?`,
           timestamp: serverTimestamp()
         });
 
+        logActivity(auth.currentUser.uid, 'prototype', `Validated Idea: ${prompt}`);
+      } catch (err) {
+        console.error("Validation Error:", err);
+      } finally {
         setIsGenerating(false);
-      }, 1500);
+      }
     }
   };
 
@@ -151,6 +144,7 @@ export function AIMentor() {
     try {
       await addDoc(collection(db, 'mentor_messages'), {
         role: 'user',
+        userId: auth.currentUser.uid,
         text: userText,
         timestamp: serverTimestamp()
       });
@@ -168,9 +162,13 @@ export function AIMentor() {
 
         await addDoc(collection(db, 'mentor_messages'), {
           role: 'ai',
+          userId: auth.currentUser.uid,
           text: aiResponse,
           timestamp: serverTimestamp()
         });
+
+        // Log chat activity
+        logActivity(auth.currentUser.uid, 'chat', 'Consulted AI Mentor');
         setIsQuerying(false);
       }, 1200);
     } catch (error) {

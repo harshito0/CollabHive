@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowRight, ArrowLeft, Check, User, Briefcase, MapPin, Code2, Sparkles } from 'lucide-react';
+import { db, auth } from '../../firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '../layout/ToastContainer';
 import './ProfileSetup.css';
 
 const SKILL_OPTIONS = [
@@ -22,6 +25,8 @@ const STEPS = [
 
 export function ProfileSetup({ isOpen, onComplete }) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
   const [profile, setProfile] = useState({
     name: '',
     bio: '',
@@ -58,8 +63,41 @@ export function ProfileSetup({ isOpen, onComplete }) {
     }));
   };
 
-  const handleFinish = () => {
-    onComplete(profile);
+  const handleFinish = async () => {
+    // Basic validation for production readiness
+    if (!profile.name.trim() || !profile.profession || profile.skills.length === 0) {
+      toast.error('Please provide your name, profession, and at least one skill.');
+      setCurrentStep(1); // Redirect to start if basic info is missing
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      const finalProfile = {
+        ...profile,
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        collabScore: 50, // Starting score
+        isProfileComplete: true,
+        createdAt: serverTimestamp(),
+        lastSynced: new Date().toISOString(),
+        stats: {
+          tasksCompleted: 0,
+          hoursCollaborated: 0,
+          projectsJoined: 0
+        }
+      };
+      
+      await setDoc(userRef, finalProfile);
+      toast.success("Your developer profile is live! 🚀");
+      onComplete(finalProfile);
+    } catch (err) {
+      console.error('Profile Save Error:', err);
+      toast.error("Failed to save profile. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -229,9 +267,9 @@ export function ProfileSetup({ isOpen, onComplete }) {
             <button
               className="btn-primary flex-center gap-2"
               onClick={handleFinish}
-              disabled={!profile.name.trim()}
+              disabled={!profile.name.trim() || loading}
             >
-              <Check size={16} /> Complete Profile!
+              <Check size={16} /> {loading ? 'Saving...' : 'Complete Profile!'}
             </button>
           )}
         </div>

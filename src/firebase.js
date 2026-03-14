@@ -3,7 +3,7 @@
 // Get them from: https://console.firebase.google.com → Project Settings → Web App
 
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GithubAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -34,4 +34,9 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { auth, db };
+const githubProvider = new GithubAuthProvider();
+// Request additional scopes for repository information
+githubProvider.addScope('repo');
+githubProvider.addScope('read:user');
+
+export { auth, db, githubProvider };

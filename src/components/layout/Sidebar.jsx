@@ -17,6 +17,7 @@ const navItems = [
   { path: '/mentor', icon: BrainCircuit, label: 'AI Project Mentor' },
   { path: '/matchmaking', icon: Users, label: 'Find Team' },
   { path: '/workspace', icon: LayoutDashboard, label: 'Workspace' },
+  { path: '/team', icon: Users, label: 'Team Rooms' },
   { path: '/hackathon', icon: Trophy, label: 'Hackathons' },
   { path: '/learning', icon: GraduationCap, label: 'Learning Paths' },
   { path: '/recruiter', icon: Briefcase, label: 'Recruiter Hub' },
