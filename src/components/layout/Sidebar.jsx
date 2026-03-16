@@ -14,6 +14,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import './Sidebar.css';
+import logo from '../../assets/logo.png';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Dashboard' },
@@ -33,7 +34,7 @@ export function Sidebar({ user, onLoginClick, onLogout, isOpen, onClose }) {
     <aside className={`sidebar glass-panel ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <div className="flex-center gap-2">
-          <Hexagon size={32} className="logo-icon text-gradient" />
+          <img src={logo} alt="CollabHive Logo" className="logo-img" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           <h2 className="logo-text">Collab<span className="text-gradient">Hive</span></h2>
         </div>
         <button className="close-sidebar icon-btn" onClick={onClose}>

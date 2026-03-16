@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Clock, Users, ArrowRight, Code, Calendar, Flame, Star, Hexagon, LogIn } from 'lucide-react';
 import './Dashboard.css';
+import logo from '../assets/logo.png';
 import { db, auth } from '../firebase';
 import { doc, onSnapshot, updateDoc, setDoc, getDoc, collection, query, orderBy } from 'firebase/firestore';
 import { useToast } from '../components/layout/ToastContainer';
@@ -125,7 +126,7 @@ export function Dashboard({ user, onLoginClick }) {
       <div className="dashboard-landing">
         <div className="landing-content glass-panel animation-fade-in">
           <div className="landing-icon-wrapper">
-            <Hexagon size={64} className="text-primary" />
+            <img src={logo} alt="CollabHive Logo" style={{ width: 64, height: 64, objectFit: 'contain' }} />
           </div>
           <h1>Welcome to <span className="text-gradient">CollabHive</span></h1>
           <p className="text-muted landing-sub">

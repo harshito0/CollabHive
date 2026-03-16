@@ -7,6 +7,7 @@ import {
   Briefcase, Sparkles, Code, Zap, Search, Shield
 } from 'lucide-react';
 import './LandingPage.css';
+import logo from '../assets/logo.png';
 
 /* ── Reusable fade-up wrapper ── */
 const FadeUp = ({ children, delay = 0, className = '' }) => (
@@ -77,7 +78,7 @@ export default function LandingPage() {
       {/* ── NAV ── */}
       <nav className="landing-nav">
         <div className="landing-nav-logo">
-          <Hexagon size={28} className="text-gradient" />
+          <img src={logo} alt="CollabHive Logo" style={{ width: 32, height: 32, objectFit: 'contain' }} />
           <span>Collab<span className="text-gradient">Hive</span></span>
         </div>
         <div className="landing-nav-links">
@@ -269,7 +270,7 @@ export default function LandingPage() {
 
       <footer className="landing-footer">
         <div className="footer-brand">
-          <Hexagon size={20} className="text-gradient" />
+          <img src={logo} alt="CollabHive Logo" style={{ width: 24, height: 24, objectFit: 'contain' }} />
           <span>Collab<span className="text-gradient">Hive</span></span>
         </div>
         <div className="footer-links">
